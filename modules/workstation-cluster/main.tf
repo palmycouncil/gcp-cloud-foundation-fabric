@@ -18,7 +18,7 @@ locals {
   ctx = {
     for k, v in var.context : k => {
       for kk, vv in v : "${local.ctx_p}${k}:${kk}" => vv
-    } if k != "condition_vars"
+    } if !endswith(k, "_vars")
   }
   ctx_p = "$"
   workstation_configs = merge(
@@ -122,8 +122,25 @@ resource "google_workstations_workstation_config" "configs" {
         dynamic "accelerators" {
           for_each = each.value.gce_instance.accelerators
           content {
-            type  = accelerators.value.type
-            count = accelerators.value.count
+            type  = accelerators.key
+            count = accelerators.value
+          }
+        }
+        dynamic "boost_configs" {
+          for_each = each.value.gce_instance.boost_configs
+          content {
+            id                           = boost_configs.key
+            machine_type                 = boost_configs.value.machine_type
+            boot_disk_size_gb            = boost_configs.value.boot_disk_size_gb
+            enable_nested_virtualization = boost_configs.value.enable_nested_virtualization
+            pool_size                    = boost_configs.value.pool_size
+            dynamic "accelerators" {
+              for_each = boost_configs.value.accelerators
+              content {
+                type  = accelerators.key
+                count = accelerators.value
+              }
+            }
           }
         }
       }
@@ -184,4 +201,3 @@ resource "google_workstations_workstation" "workstations" {
   env                    = each.value.env
   annotations            = each.value.annotations
 }
-

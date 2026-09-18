@@ -1,4 +1,7 @@
 context = {
+  access_levels = {
+    test = "accessPolicies/1234567890/accessLevels/test"
+  }
   bigquery_datasets = {
     test = "projects/test-prod-audit-logs-0/datasets/logs"
   }
@@ -129,6 +132,7 @@ logging_sinks = {
     type        = "project"
   }
   test-pubsub = {
+    description = ""
     destination = "$pubsub_topics:test"
     filter      = "log_id('cloudaudit.googleapis.com/activity')"
     type        = "pubsub"
@@ -149,8 +153,13 @@ pam_entitlements = {
     manual_approvals = {
       require_approver_justification = true
       steps = [{
-        approvers = ["$iam_principals:mygroup"]
+        approvers                 = ["$iam_principals:mygroup"]
+        approver_email_recipients = ["$email_addresses:default"]
       }]
+    }
+    additional_notification_targets = {
+      admin_email_recipients     = ["$email_addresses:default"]
+      requester_email_recipients = ["$email_addresses:default"]
     }
     eligible_users = ["$iam_principals:mygroup"]
     privileged_access = [
@@ -202,4 +211,48 @@ tags = {
       }
     }
   }
+}
+
+iam_deny_policies = {
+  test-policy = {
+    display_name = "Test Deny Policy"
+    rules = [
+      {
+        description          = "Test Rule"
+        denied_principals    = ["$iam_principals:myuser"]
+        denied_permissions   = ["compute.googleapis.com/instances.create"]
+        exception_principals = ["$iam_principals:mygroup"]
+        denial_condition = {
+          title      = "Test Condition"
+          expression = "resource.matchTag('$${organization.id}/environment', 'development')"
+        }
+      }
+    ]
+  }
+}
+
+access_policy = "1234567890"
+
+access_levels = {
+  my_level = {
+    conditions = [{
+      ip_subnetworks = ["10.0.0.0/24"]
+      members        = ["user:test-user@example.com"]
+    }]
+  }
+}
+
+context_aware_access_bindings = {
+  my_binding = {
+    group_key = "$email_addresses:default"
+    access_levels = [
+      "$access_levels:test",
+      "$access_levels:my_level",
+      "$access_levels:factory_level"
+    ]
+  }
+}
+
+factories_config = {
+  access_levels = "factory-caa/access_levels"
 }

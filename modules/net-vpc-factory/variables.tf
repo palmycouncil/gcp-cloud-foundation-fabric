@@ -17,8 +17,10 @@
 variable "context" {
   description = "Context-specific interpolations."
   type = object({
-    locations   = optional(map(string), {})
-    project_ids = optional(map(string), {})
+    cidr_ranges_sets = optional(map(list(string)), {})
+    iam_principals   = optional(map(string), {})
+    locations        = optional(map(string), {})
+    project_ids      = optional(map(string), {})
   })
   default  = {}
   nullable = false
@@ -29,9 +31,9 @@ variable "data_defaults" {
   type = object({
     project_id                        = optional(string)
     description                       = optional(string, "Terraform managed")
-    auto_create_subnetworks           = optional(bool)
+    auto_create_subnetworks           = optional(bool, false)
     delete_default_routes_on_create   = optional(bool, true)
-    mtu                               = optional(number)
+    mtu                               = optional(number, 1500)
     routing_mode                      = optional(string, "GLOBAL")
     firewall_policy_enforcement_order = optional(string, "AFTER_CLASSIC_FIREWALL")
     create_googleapis_routes = optional(object({
@@ -89,6 +91,32 @@ variable "data_overrides" {
       enable_ula_internal = optional(bool)
       internal_range      = optional(string)
     }))
+    policy_based_routes = optional(map(object({
+      name                = optional(string)
+      description         = optional(string, "Terraform-managed.")
+      labels              = optional(map(string))
+      priority            = optional(number)
+      next_hop_ilb_ip     = optional(string)
+      use_default_routing = optional(bool, false)
+      filter = optional(object({
+        ip_protocol = optional(string)
+        dest_range  = optional(string)
+        src_range   = optional(string)
+      }), {})
+      target = optional(object({
+        interconnect_attachment = optional(string)
+        tags                    = optional(list(string))
+      }), {})
+    })))
+    routes = optional(map(object({
+      name          = optional(string)
+      description   = optional(string, "Terraform-managed.")
+      dest_range    = string
+      next_hop_type = string
+      next_hop      = string
+      priority      = optional(number)
+      tags          = optional(list(string))
+    })))
   })
   default  = {}
   nullable = false
@@ -97,9 +125,10 @@ variable "data_overrides" {
 variable "factories_config" {
   description = "Path to folder with YAML resource description data files."
   type = object({
-    vpcs     = optional(string)
-    defaults = optional(string)
+    basepath = string
+    paths = optional(object({
+      vpcs = optional(string, "vpcs")
+    }), {})
   })
-  default  = {}
   nullable = false
 }

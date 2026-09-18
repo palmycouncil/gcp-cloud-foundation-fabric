@@ -11,8 +11,12 @@
   <br>*additional properties: false*
   - **`^[a-z0-9-]+$`**: *string*
 - **name**: *string*
+- **region**: *string*
 - **ingress_rules**: *reference([rules](#refs-rules))*
 - **egress_rules**: *reference([rules](#refs-rules))*
+- **tag_bindings**: *object*
+  <br>*additional properties: false*
+  - **`^[a-zA-Z0-9_/-]+$`**: *string*
 
 ## Definitions
 

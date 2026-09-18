@@ -20,6 +20,20 @@ variable "address" {
   default     = null
 }
 
+variable "context" {
+  description = "Context-specific interpolations."
+  type = object({
+    addresses         = optional(map(string), {})
+    locations         = optional(map(string), {})
+    networks          = optional(map(string), {})
+    project_ids       = optional(map(string), {})
+    security_policies = optional(map(string), {})
+    subnets           = optional(map(string), {})
+  })
+  default  = {}
+  nullable = false
+}
+
 variable "description" {
   description = "Optional description used for resources."
   type        = string
@@ -43,8 +57,9 @@ variable "group_configs" {
 variable "http_proxy_config" {
   description = "HTTP proxy configuration."
   type = object({
-    name        = optional(string)
-    description = optional(string, "Terraform managed.")
+    name                   = optional(string)
+    description            = optional(string, "Terraform managed.")
+    http_keepalive_timeout = optional(string)
   })
   default  = {}
   nullable = false
@@ -57,6 +72,7 @@ variable "https_proxy_config" {
     description                      = optional(string, "Terraform managed.")
     certificate_manager_certificates = optional(list(string))
     certificate_map                  = optional(string)
+    http_keepalive_timeout           = optional(string)
     quic_override                    = optional(string)
     ssl_policy                       = optional(string)
   })
@@ -234,8 +250,11 @@ variable "ssl_certificates" {
 }
 
 
-variable "vpc" {
+variable "vpc_config" {
   description = "VPC-level configuration."
-  type        = string
-  nullable    = false
+  type = object({
+    network = string
+  })
+  nullable = false
 }
+

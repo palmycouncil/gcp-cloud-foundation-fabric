@@ -54,11 +54,15 @@ locals {
       name => sink if sink.iam && sink.type == type
     }
   }
+  sink_bucket_expressions = {
+    for name, sink in local.sink_bindings["logging"] :
+    name => "resource.name.endsWith('locations/${split("/", sink.destination)[3]}/buckets/${split("/", sink.destination)[5]}')"
+  }
 }
 
 resource "google_logging_folder_settings" "default" {
   count                = var.logging_settings != null ? 1 : 0
-  folder               = local.folder_id
+  folder               = local.folder_number
   disable_default_sink = var.logging_settings.disable_default_sink
   kms_key_name = (
     var.logging_settings.kms_key_name == null
@@ -85,9 +89,13 @@ resource "google_folder_iam_audit_config" "default" {
 }
 
 resource "google_logging_folder_sink" "sink" {
-  for_each           = local.logging_sinks
-  name               = each.key
-  description        = coalesce(each.value.description, "${each.key} (Terraform-managed).")
+  for_each = local.logging_sinks
+  name     = each.key
+  description = (
+    each.value.description == null
+    ? "${each.key} (Terraform-managed)."
+    : each.value.description
+  )
   folder             = local.folder_id
   destination        = "${lookup(each.value, "api", each.value.type)}.googleapis.com/${each.value.destination}"
   filter             = each.value.filter
@@ -116,14 +124,24 @@ resource "google_logging_folder_sink" "sink" {
   ]
 }
 
-resource "google_storage_bucket_iam_member" "gcs-sinks-binding" {
+moved {
+  from = google_storage_bucket_iam_member.gcs-sinks-binding
+  to   = google_storage_bucket_iam_member.gcs_sinks_binding
+}
+
+resource "google_storage_bucket_iam_member" "gcs_sinks_binding" {
   for_each = local.sink_bindings["storage"]
   bucket   = each.value.destination
   role     = "roles/storage.objectCreator"
   member   = google_logging_folder_sink.sink[each.key].writer_identity
 }
 
-resource "google_bigquery_dataset_iam_member" "bq-sinks-binding" {
+moved {
+  from = google_bigquery_dataset_iam_member.bq-sinks-binding
+  to   = google_bigquery_dataset_iam_member.bq_sinks_binding
+}
+
+resource "google_bigquery_dataset_iam_member" "bq_sinks_binding" {
   for_each   = local.sink_bindings["bigquery"]
   project    = split("/", each.value.destination)[1]
   dataset_id = split("/", each.value.destination)[3]
@@ -131,7 +149,12 @@ resource "google_bigquery_dataset_iam_member" "bq-sinks-binding" {
   member     = google_logging_folder_sink.sink[each.key].writer_identity
 }
 
-resource "google_pubsub_topic_iam_member" "pubsub-sinks-binding" {
+moved {
+  from = google_pubsub_topic_iam_member.pubsub-sinks-binding
+  to   = google_pubsub_topic_iam_member.pubsub_sinks_binding
+}
+
+resource "google_pubsub_topic_iam_member" "pubsub_sinks_binding" {
   for_each = local.sink_bindings["pubsub"]
   project  = split("/", each.value.destination)[1]
   topic    = split("/", each.value.destination)[3]
@@ -139,7 +162,12 @@ resource "google_pubsub_topic_iam_member" "pubsub-sinks-binding" {
   member   = google_logging_folder_sink.sink[each.key].writer_identity
 }
 
-resource "google_project_iam_member" "bucket-sinks-binding" {
+moved {
+  from = google_project_iam_member.bucket-sinks-binding
+  to   = google_project_iam_member.bucket_sinks_binding
+}
+
+resource "google_project_iam_member" "bucket_sinks_binding" {
   for_each = local.sink_bindings["logging"]
   project  = split("/", each.value.destination)[1]
   role     = "roles/logging.bucketWriter"
@@ -147,18 +175,28 @@ resource "google_project_iam_member" "bucket-sinks-binding" {
   condition {
     title       = "${each.key} bucket writer"
     description = "Grants bucketWriter to ${google_logging_folder_sink.sink[each.key].writer_identity} used by log sink ${each.key} on ${local.folder_id}"
-    expression  = "resource.name.endsWith('${each.value.destination}')"
+    expression  = local.sink_bucket_expressions[each.key]
   }
 }
 
-resource "google_project_iam_member" "project-sinks-binding" {
+moved {
+  from = google_project_iam_member.project-sinks-binding
+  to   = google_project_iam_member.project_sinks_binding
+}
+
+resource "google_project_iam_member" "project_sinks_binding" {
   for_each = local.sink_bindings["project"]
   project  = each.value.destination
   role     = "roles/logging.logWriter"
   member   = google_logging_folder_sink.sink[each.key].writer_identity
 }
 
-resource "google_logging_folder_exclusion" "logging-exclusion" {
+moved {
+  from = google_logging_folder_exclusion.logging-exclusion
+  to   = google_logging_folder_exclusion.logging_exclusion
+}
+
+resource "google_logging_folder_exclusion" "logging_exclusion" {
   for_each    = var.logging_exclusions
   name        = each.key
   folder      = local.folder_id

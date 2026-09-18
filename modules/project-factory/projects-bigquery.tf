@@ -51,10 +51,16 @@ module "bigquery-datasets" {
   project_id = module.projects-iam[each.value.project_key].project_id
   id         = each.value.id
   context = merge(local.ctx, {
+    tag_vars = {
+      projects     = merge(try(local.ctx.tag_vars.projects, {}), local.tag_vars_projects)
+      organization = try(local.ctx.tag_vars.organization, {})
+    }
     iam_principals = merge(
       local.ctx.iam_principals,
       local.projects_sas_iam_emails,
       local.automation_sas_iam_emails,
+      local.projects_service_agents,
+      lookup(local.per_project_service_agents, each.value.project_key, {}),
       lookup(local.self_sas_iam_emails, each.value.project_key, {})
     )
     kms_keys    = merge(local.ctx.kms_keys, local.kms_keys, local.kms_autokeys)

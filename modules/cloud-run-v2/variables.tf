@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
+variable "binary_authorization" {
+  description = "Binary Authorization configuration."
+  type = object({
+    breakglass_justification = optional(string)
+    policy                   = optional(string)
+    use_default              = optional(bool)
+  })
+  default = null
+}
+
 variable "containers" {
   description = "Containers in name => attributes format."
   type = map(object({
@@ -107,6 +117,10 @@ variable "context" {
     project_ids    = optional(map(string), {})
     subnets        = optional(map(string), {})
     tag_values     = optional(map(string), {})
+    tag_vars = optional(object({
+      projects     = optional(map(map(string)), {})
+      organization = optional(map(string), {})
+    }), {})
   })
   nullable = false
   default  = {}
@@ -260,7 +274,8 @@ variable "revision" {
 variable "service_config" {
   description = "Cloud Run service specific configuration options."
   type = object({
-    custom_audiences = optional(list(string), null)
+    custom_audiences     = optional(list(string), null)
+    default_uri_disabled = optional(bool)
     eventarc_triggers = optional(
       object({
         audit_log = optional(map(object({
@@ -282,11 +297,20 @@ variable "service_config" {
     ingress              = optional(string, null)
     invoker_iam_disabled = optional(bool, false)
     max_concurrency      = optional(number)
+    multi_region_settings = optional(object({
+      regions = list(string)
+    }), null)
     scaling = optional(object({
       max_instance_count = optional(number)
       min_instance_count = optional(number)
     }))
     timeout = optional(string)
+    traffic = optional(list(object({
+      percent  = optional(number)
+      revision = optional(string)
+      tag      = optional(string)
+      type     = optional(string)
+    })))
   })
   default  = {}
   nullable = false
@@ -316,6 +340,33 @@ variable "service_config" {
     Ingress should be one of INGRESS_TRAFFIC_ALL, INGRESS_TRAFFIC_INTERNAL_ONLY,
     INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER.
     EOF
+  }
+
+  validation {
+    condition = var.service_config.traffic == null ? true : alltrue([
+      for t in var.service_config.traffic :
+      t.type == null ? true : contains([
+        "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST",
+        "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
+      ], t.type)
+    ])
+    error_message = "Traffic type should be one of TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST, TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION."
+  }
+
+  validation {
+    condition = var.service_config.traffic == null ? true : alltrue([
+      for t in var.service_config.traffic :
+      t.percent == null ? true : (t.percent >= 0 && t.percent <= 100)
+    ])
+    error_message = "Traffic percent must be between 0 and 100."
+  }
+
+  validation {
+    condition = var.service_config.traffic == null ? true : alltrue([
+      for t in var.service_config.traffic :
+      t.tag == null ? true : (length(t.tag) >= 3 && length(t.tag) <= 47)
+    ])
+    error_message = "Traffic tag length must be between 3 and 47 characters."
   }
 }
 

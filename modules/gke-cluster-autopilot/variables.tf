@@ -150,7 +150,6 @@ variable "enable_features" {
       kms_key_name = optional(string)
     }))
     vertical_pod_autoscaling = optional(bool, false)
-    enterprise_cluster       = optional(bool)
   })
   default = {}
   validation {
@@ -245,6 +244,10 @@ variable "monitoring_config" {
     enable_cadvisor_metrics    = optional(bool, false)
     # Google Cloud Managed Service for Prometheus. Autopilot clusters version >= 1.25 must have this on.
     enable_managed_prometheus = optional(bool, true)
+    advanced_datapath_observability = optional(object({
+      enable_metrics = bool
+      enable_relay   = bool
+    }))
   })
   default  = {}
   nullable = false

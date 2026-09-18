@@ -9,6 +9,13 @@
 - ⁺**project_id**: *string*
 - ⁺**name**: *string*
 - **description**: *string*
+- **factories_config**: *object*
+  <br>*additional properties: false*
+  - **firewall_rules**: *string*
+  - **attachment_groups**: *string*
+  - **subnets**: *string*
+  - **vlan_attachments**: *string*
+  - **vpns**: *string*
 - **auto_create_subnetworks**: *boolean*
 - **delete_default_routes_on_create**: *boolean*
 - **mtu**: *number*
@@ -16,12 +23,6 @@
   <br>*enum: ['GLOBAL', 'REGIONAL']*
 - **firewall_policy_enforcement_order**: *string*
   <br>*enum: ['BEFORE_CLASSIC_FIREWALL', 'AFTER_CLASSIC_FIREWALL']*
-- **factories_config**: *object*
-  <br>*additional properties: false*
-  - **firewall_rules**: *string*
-  - **subnets**: *string*
-  - **vlan_attachments**: *string*
-  - **vpns**: *string*
 - **create_googleapis_routes**: *reference([create_googleapis_routes](#refs-create_googleapis_routes))*
 - **dns_policy**: *reference([dns_policy](#refs-dns_policy))*
 - **ipv6_config**: *reference([ipv6_config](#refs-ipv6_config))*
@@ -66,6 +67,7 @@
 - **nat_config**<a name="refs-nat_config"></a>: *object*
   - **`^[a-z0-9-]+$`**: *object*
     - ⁺**region**: *string*
+    - **num_nat_ips**: *number*
 - **ncc_config**<a name="refs-ncc_config"></a>: *object*
   - ⁺**hub**: *string*
   - **group**: *string*
@@ -93,7 +95,10 @@
       - **ip_protocol**: *string*
       - **src_range**: *string*
     - **labels**: *object*
-      <br>*additional properties: string*
+      <br>*additional properties: false*
+      - **`^[a-z][a-z0-9_-]{0,62}$`**: *string*
+        <br>*pattern: ^[a-z0-9_-]{0,63}$*
+    - **name**: *string*
     - **next_hop_ilb_ip**: *string*
     - **priority**: *number*
     - **target**: *object*
@@ -116,6 +121,7 @@
   - **`^[a-z0-9-]+$`**: *object*
     - **description**: *string*
     - ⁺**dest_range**: *string*
+    - **name**: *string*
     - ⁺**next_hop_type**: *string*
     - ⁺**next_hop**: *string*
     - **priority**: *number*

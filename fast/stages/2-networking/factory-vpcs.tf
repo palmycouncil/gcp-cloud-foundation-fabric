@@ -27,6 +27,7 @@ locals {
       {
         factory_dirname  = dirname(f)
         factory_basepath = "${local.paths.vpcs}/${dirname(f)}"
+        addresses        = try(yamldecode(file("${local.paths.vpcs}/${dirname(f)}/addresses.yaml")), {})
       }
     )
   ]
@@ -35,7 +36,8 @@ locals {
   }
   vpcs = {
     for k, v in local._vpcs : k => merge(
-      local.vpc_defaults, v,
+      local.vpc_defaults.defaults,
+      v,
       {
         project_id                        = v.project_id
         description                       = try(v.description, "Terraform managed")
@@ -71,7 +73,8 @@ locals {
         factories_config = try(v.factories_config, {})
         peering_config   = try(v.peering_config, {})
         vpn_config       = try(v.vpn_config, {})
-      }
+      },
+      local.vpc_defaults.overrides
     )
   }
   ctx_vpcs = {
@@ -98,8 +101,19 @@ moved {
 }
 
 module "vpc-factory" {
-  source           = "../../../modules/net-vpc-factory"
-  factories_config = local.paths
+  source        = "../../../modules/net-vpc-factory"
+  data_defaults = local.vpc_defaults.defaults
+  # routes and policy based routes are suppressed here and managed in a
+  # second pass via module.vpc-routes, so that next hops can resolve NVA
+  # ILB addresses created after the VPCs
+  data_overrides = merge(local.vpc_defaults.overrides, {
+    policy_based_routes = {}
+    routes              = {}
+  })
+  factories_config = {
+    basepath = var.factories_config.dataset
+    paths    = var.factories_config.paths
+  }
   context = {
     project_ids = local.ctx_projects.project_ids
     locations   = local.ctx.locations
@@ -118,9 +132,10 @@ module "vpc-routes" {
     use_data_source = false
     attributes      = { network_id = module.vpc-factory.vpcs[each.key].network_id }
   }
-  project_id = each.value.project_id
-  name       = each.value.name
-  routes     = try(each.value.routes, {})
+  project_id          = each.value.project_id
+  name                = each.value.name
+  policy_based_routes = try(each.value.policy_based_routes, {})
+  routes              = try(each.value.routes, {})
   context = {
     project_ids = local.ctx_projects.project_ids
     locations   = local.ctx.locations
