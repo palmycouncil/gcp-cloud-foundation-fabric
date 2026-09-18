@@ -46,8 +46,8 @@ locals {
     ]...),
     {}
   )
-  # Read and decode the discovered YAML files. This step also injects VPC-level 
-  # inferred attributes  into each configuration, such as the `project_id` and 
+  # Read and decode the discovered YAML files. This step also injects VPC-level
+  # inferred attributes  into each configuration, such as the `project_id` and
   # `network`, ensuring each attachment is correctly associated with its parent VPC.
   _vlan_attachments_preprocess = {
     for k, v in local._vlan_attachments_files : k => merge(
@@ -66,6 +66,87 @@ locals {
       mtu    = try(v.mtu, local.vpcs[v.vpc_key].mtu, local.vpc_defaults.mtu, 1500)
     })
   }
+
+  _attachment_groups_files = try(
+    merge([
+      for vpc_key, vpc in local.vpcs : {
+        for f in try(fileset(
+          try(
+            startswith(vpc.factories_config.attachment_groups, "/") || startswith(vpc.factories_config.attachment_groups, ".") ? vpc.factories_config.attachment_groups :
+            "${vpc.factory_basepath}/${vpc.factories_config.attachment_groups}",
+            "${vpc.factory_basepath}/attachment-groups"
+          ),
+          "**/*.yaml"
+        ), []) :
+        "${vpc_key}-${replace(f, ".yaml", "")}" => {
+          vpc_key  = vpc_key
+          filename = f
+          path = try(
+            startswith(vpc.factories_config.attachment_groups, "/") || startswith(vpc.factories_config.attachment_groups, ".")
+            ? "${vpc.factories_config.attachment_groups}/${f}"
+            : "${vpc.factory_basepath}/${vpc.factories_config.attachment_groups}/${f}",
+            "${vpc.factory_basepath}/attachment-groups/${f}"
+          )
+        }
+      }
+    ]...),
+    {}
+  )
+  _attachment_groups_preprocess = {
+    for k, v in local._attachment_groups_files : k => merge(
+      {
+        project_id = local.vpcs[v.vpc_key].project_id
+      },
+      try(yamldecode(file(v.path)), {}),
+      {
+        key     = k
+        vpc_key = v.vpc_key
+      }
+    )
+  }
+  attachment_groups = {
+    for k, v in local._attachment_groups_preprocess : k => merge(v, {
+      name   = try(v.name, k)
+      intent = try(v.intent, { availability_sla = "NO_SLA" })
+    })
+  }
+
+  ctx_attachment_groups = {
+    for k, v in local.attachment_groups : "${v.vpc_key}/${v.name}" => k
+  }
+
+  ctx_vlan_attachments = {
+    for k, v in local.vlan_attachments : "${v.vpc_key}/${try(v.name, k)}" => k
+  }
+
+  # Gathers all members for each attachment group. Membership can be defined
+  # in two ways:
+  # 1. From the VLAN attachment's config via the `attachment_group` attribute.
+  # 2. From the attachment group's config via the `attachments` map.
+  _attachment_groups_attachments = {
+    for g_key, g_config in local.attachment_groups : g_key =>
+    concat(
+      [
+        for a_key, a_config in local.vlan_attachments : {
+          name       = try(a_config.name, a_config.key)
+          attachment = module.vlan-attachments[a_key].id
+        }
+        if try(
+          lookup(local.ctx_attachment_groups, replace(a_config.attachment_group, "$attachment_groups:", ""), a_config.attachment_group),
+          null
+        ) == g_key || (try(a_config.attachment_group, null) == g_config.name && a_config.vpc_key == g_config.vpc_key)
+      ],
+      [
+        for a in values(try(g_config.attachments, {})) : {
+          name = a.name
+          attachment = try(
+            module.vlan-attachments[lookup(local.ctx_vlan_attachments, replace(a.attachment, "$vlan_attachments:", ""), a.attachment)].id,
+            a.attachment
+          )
+        }
+      ]
+    )
+  }
 }
 
 module "vlan-attachments" {
@@ -73,6 +154,7 @@ module "vlan-attachments" {
   for_each = local.vlan_attachments
 
   admin_enabled                 = try(each.value.admin_enabled, true)
+  bgp_peer                      = try(each.value.bgp_peer, null)
   dedicated_interconnect_config = try(each.value.dedicated_interconnect_config, null)
   description                   = try(each.value.description, "Terraform managed.")
   ipsec_gateway_ip_ranges       = try(each.value.ipsec_gateway_ip_ranges, {})
@@ -93,4 +175,29 @@ module "vlan-attachments" {
     routers     = local.ctx_routers.names
   }
   depends_on = [module.vpc-factory]
+}
+
+resource "google_compute_interconnect_attachment_group" "default" {
+  for_each = local.attachment_groups
+  project = lookup(
+    local.ctx_projects.project_ids,
+    replace(each.value.project_id, "$project_ids:", ""),
+    each.value.project_id
+  )
+  name        = each.value.name
+  description = try(each.value.description, "Terraform-managed.")
+
+  intent {
+    availability_sla = try(each.value.intent.availability_sla, "NO_SLA")
+  }
+
+  dynamic "attachments" {
+    for_each = local._attachment_groups_attachments[each.key]
+    content {
+      name       = attachments.value.name
+      attachment = attachments.value.attachment
+    }
+  }
+
+  depends_on = [module.vlan-attachments]
 }

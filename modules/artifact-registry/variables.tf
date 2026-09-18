@@ -53,6 +53,10 @@ variable "context" {
     project_ids         = optional(map(string), {})
     secrets             = optional(map(string), {})
     tag_values          = optional(map(string), {})
+    tag_vars = optional(object({
+      projects     = optional(map(map(string)), {})
+      organization = optional(map(string), {})
+    }), {})
   })
   default  = {}
   nullable = false
@@ -119,6 +123,14 @@ variable "format" {
       standard = optional(bool)
     }))
     go = optional(object({
+      remote = optional(object({
+        common_repository           = optional(string)
+        disable_upstream_validation = optional(bool)
+        upstream_credentials = optional(object({
+          username                = string
+          password_secret_version = string
+        }))
+      }))
       standard = optional(bool)
     }))
     googet = optional(object({
@@ -127,6 +139,7 @@ variable "format" {
     maven = optional(object({
       remote = optional(object({
         public_repository = optional(string)
+        common_repository = optional(string)
         custom_repository = optional(string)
 
         disable_upstream_validation = optional(bool)
@@ -147,6 +160,7 @@ variable "format" {
     npm = optional(object({
       remote = optional(object({
         public_repository = optional(string)
+        common_repository = optional(string)
         custom_repository = optional(string)
 
         disable_upstream_validation = optional(bool)
@@ -164,6 +178,7 @@ variable "format" {
     python = optional(object({
       remote = optional(object({
         public_repository = optional(string)
+        common_repository = optional(string)
         custom_repository = optional(string)
 
         disable_upstream_validation = optional(bool)

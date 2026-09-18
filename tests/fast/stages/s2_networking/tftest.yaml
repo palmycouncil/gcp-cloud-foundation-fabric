@@ -17,6 +17,16 @@ module: fast/stages/2-networking
 tests:
   # peering is renamed to simple so as to trigger tflint
   simple:
+  dns_delegations:
+    inventory:
+      - dns_delegations.yaml
+    extra_dirs:
+      - ../../../tests/fast/stages/s2_networking/data-testdns-delegation
+  static_ips_nat:
+    inventory:
+      - static_ips_nat.yaml
+    extra_dirs:
+      - ../../../tests/fast/stages/s2_networking/data-teststatic-ips-nat
   ncc:
   nva:
   vlan_attachments:
@@ -25,3 +35,13 @@ tests:
     extra_dirs:
       - ../../../tests/fast/stages/s2_networking/data-testvlan
   vpns:
+  addresses:
+    inventory:
+      - addresses.yaml
+    extra_dirs:
+      - ../../../tests/fast/stages/s2_networking/data-testaddresses
+  fw_policies:
+    inventory:
+      - fw_policies.yaml
+    extra_dirs:
+      - ../../../tests/fast/stages/s2_networking/data-testfw

@@ -43,20 +43,45 @@ locals {
   project_id = lookup(local.ctx.project_ids, var.project_id, var.project_id)
   region     = lookup(local.ctx.locations, var.region, var.region)
 
+  ### PSC locals
+  psc_allowed_consumer_projects = (
+    try(var.network_config.connectivity.psc_config.allowed_consumer_projects, null) == null
+    ? null
+    : [
+      for p in try(var.network_config.connectivity.psc_config.allowed_consumer_projects, []) :
+      lookup(local.ctx.project_ids, p, p)
+    ]
+  )
+  psc_auto_connections = [
+    for c in coalesce(
+      try(var.network_config.connectivity.psc_config.psc_auto_connections, []),
+      []
+      ) : {
+      consumer_network = lookup(local.ctx.networks, c.consumer_network, c.consumer_network)
+      consumer_service_project_id = (
+        c.consumer_service_project_id == null
+        ? null
+        : lookup(local.ctx.project_ids, c.consumer_service_project_id, c.consumer_service_project_id)
+      )
+    }
+  ]
+
   users = {
     for k, v in var.users : k =>
     local.is_mysql
     ? {
-      name     = v.type == "BUILT_IN" ? split("@", k)[0] : k
-      host     = v.type == "BUILT_IN" ? try(split("@", k)[1], null) : null
-      password = v.type == "BUILT_IN" ? try(random_password.passwords[k].result, v.password) : null
-      type     = v.type
+      name           = v.type == "BUILT_IN" ? split("@", k)[0] : k
+      host           = v.type == "BUILT_IN" ? try(split("@", k)[1], null) : null
+      password       = v.type == "BUILT_IN" ? try(random_password.passwords[k].result, v.password) : null
+      type           = v.type
+      database_roles = v.database_roles
     }
     : {
-      name     = local.is_postgres ? try(trimsuffix(k, ".gserviceaccount.com"), k) : k
-      host     = null
-      password = v.type == "BUILT_IN" ? try(random_password.passwords[k].result, v.password) : null
-      type     = v.type
+      name           = local.is_postgres ? try(trimsuffix(k, ".gserviceaccount.com"), k) : k
+      host           = null
+      password       = v.type == "BUILT_IN" ? try(random_password.passwords[k].result, v.password) : null
+      type           = v.type
+      database_roles = v.database_roles
     }
   }
 }
@@ -83,6 +108,7 @@ resource "google_sql_database_instance" "primary" {
     activation_policy           = var.activation_policy
     collation                   = var.collation
     connector_enforcement       = var.connector_enforcement
+    data_api_access             = var.data_api_access
     time_zone                   = var.time_zone
     retain_backups_on_delete    = try(var.backup_configuration.retain_backups_on_delete, null)
 
@@ -110,15 +136,25 @@ resource "google_sql_database_instance" "primary" {
       }
       dynamic "psc_config" {
         for_each = (
-          var.network_config.connectivity.psc_allowed_consumer_projects != null
+          try(var.network_config.connectivity.psc_config, null) != null
           ? [""]
           : []
         )
         content {
-          psc_enabled = true
-          allowed_consumer_projects = (
-            var.network_config.connectivity.psc_allowed_consumer_projects
-          )
+          psc_enabled                        = true
+          allowed_consumer_projects          = local.psc_allowed_consumer_projects
+          network_attachment_uri             = try(var.network_config.connectivity.psc_config.network_attachment_uri, null)
+          psc_auto_connection_policy_enabled = var.network_config.connectivity.psc_config.psc_auto_connection_policy_enabled
+          psc_auto_dns_enabled               = var.network_config.connectivity.psc_config.psc_auto_dns_enabled
+          psc_write_endpoint_dns_enabled     = var.network_config.connectivity.psc_config.psc_write_endpoint_dns_enabled
+
+          dynamic "psc_auto_connections" {
+            for_each = local.psc_auto_connections
+            content {
+              consumer_network            = psc_auto_connections.value.consumer_network
+              consumer_service_project_id = psc_auto_connections.value.consumer_service_project_id
+            }
+          }
         }
       }
     }
@@ -211,11 +247,12 @@ resource "google_sql_database_instance" "primary" {
     dynamic "insights_config" {
       for_each = var.insights_config != null ? [1] : []
       content {
-        query_insights_enabled  = true
-        query_string_length     = var.insights_config.query_string_length
-        record_application_tags = var.insights_config.record_application_tags
-        record_client_address   = var.insights_config.record_client_address
-        query_plans_per_minute  = var.insights_config.query_plans_per_minute
+        query_insights_enabled          = true
+        query_string_length             = var.insights_config.query_string_length
+        record_application_tags         = var.insights_config.record_application_tags
+        record_client_address           = var.insights_config.record_client_address
+        query_plans_per_minute          = var.insights_config.query_plans_per_minute
+        enhanced_query_insights_enabled = var.insights_config.enhanced_query_insights_enabled
       }
     }
 
@@ -268,7 +305,7 @@ resource "google_sql_database_instance" "replicas" {
   master_instance_name = google_sql_database_instance.primary.name
 
   settings {
-    tier                        = var.tier
+    tier                        = coalesce(each.value.tier, var.tier)
     edition                     = var.edition
     deletion_protection_enabled = var.gcp_deletion_protection
     disk_autoresize             = var.disk_size == null
@@ -309,15 +346,25 @@ resource "google_sql_database_instance" "replicas" {
       }
       dynamic "psc_config" {
         for_each = (
-          var.network_config.connectivity.psc_allowed_consumer_projects != null
+          try(var.network_config.connectivity.psc_config, null) != null
           ? [""]
           : []
         )
         content {
-          psc_enabled = true
-          allowed_consumer_projects = (
-            var.network_config.connectivity.psc_allowed_consumer_projects
-          )
+          psc_enabled                        = true
+          allowed_consumer_projects          = local.psc_allowed_consumer_projects
+          network_attachment_uri             = try(var.network_config.connectivity.psc_config.network_attachment_uri, null)
+          psc_auto_connection_policy_enabled = var.network_config.connectivity.psc_config.psc_auto_connection_policy_enabled
+          psc_auto_dns_enabled               = var.network_config.connectivity.psc_config.psc_auto_dns_enabled
+          psc_write_endpoint_dns_enabled     = var.network_config.connectivity.psc_config.psc_write_endpoint_dns_enabled
+
+          dynamic "psc_auto_connections" {
+            for_each = local.psc_auto_connections
+            content {
+              consumer_network            = psc_auto_connections.value.consumer_network
+              consumer_service_project_id = psc_auto_connections.value.consumer_service_project_id
+            }
+          }
         }
       }
     }
@@ -366,13 +413,14 @@ resource "random_password" "root_password" {
 }
 
 resource "google_sql_user" "users" {
-  for_each = local.users
-  project  = local.project_id
-  instance = google_sql_database_instance.primary.name
-  name     = each.value.name
-  host     = each.value.host
-  password = each.value.password
-  type     = each.value.type
+  for_each       = local.users
+  project        = local.project_id
+  instance       = google_sql_database_instance.primary.name
+  name           = each.value.name
+  host           = each.value.host
+  password       = each.value.password
+  type           = each.value.type
+  database_roles = each.value.database_roles
 }
 
 moved {
@@ -391,4 +439,3 @@ resource "google_sql_ssl_cert" "client_certificates" {
   instance    = google_sql_database_instance.primary.name
   common_name = each.key
 }
-

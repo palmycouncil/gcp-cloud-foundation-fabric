@@ -43,14 +43,19 @@ resource "google_secret_manager_regional_secret" "default" {
       )
     }
   }
-  # dynamic "rotation" {
-  #   for_each = try(each.value.rotation_config, null) == null ? [] : [""]
-  #   content {
-  #     next_rotation_time = each.value.rotation_config.next_time
-  #     rotation_period    = each.value.rotation_config.period
-  #   }
-  # }
-  # topics
+  dynamic "rotation" {
+    for_each = try(each.value.rotation_config, null) == null ? [] : [""]
+    content {
+      next_rotation_time = each.value.rotation_config.next_time
+      rotation_period    = each.value.rotation_config.period
+    }
+  }
+  dynamic "topics" {
+    for_each = coalesce(try(each.value.topics, null), [])
+    content {
+      name = topics.value
+    }
+  }
   lifecycle {
     ignore_changes = [
       rotation[0].next_rotation_time
@@ -86,5 +91,5 @@ resource "google_tags_location_tag_binding" "binding" {
     google_secret_manager_regional_secret.default[each.value.secret].secret_id
   )
   location  = lookup(local.ctx.locations, each.value.location, each.value.location)
-  tag_value = lookup(local.ctx.tag_values, each.value.tag, each.value.tag)
+  tag_value = templatestring(local._tag_bindings[each.key], var.context.tag_vars)
 }

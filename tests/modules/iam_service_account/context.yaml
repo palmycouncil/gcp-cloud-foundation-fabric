@@ -1,10 +1,10 @@
-# Copyright 2025 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,17 +13,18 @@
 # limitations under the License.
 
 values:
-  google_folder_iam_member.folder-roles["$folder_ids:test-roles/resourcemanager.folderViewer"]:
+  google_folder_iam_member.folder_roles["$folder_ids:test-roles/resourcemanager.folderViewer"]:
     condition: []
     folder: folders/1234567890
     role: roles/resourcemanager.folderViewer
-  google_project_iam_member.project-roles["$project_ids:test-roles/viewer"]:
+  google_project_iam_member.project_roles["$project_ids:test-roles/viewer"]:
     condition: []
     project: prj-test-0
     role: roles/viewer
   google_service_account.service_account[0]:
     account_id: prefix-test-sa
     create_ignore_already_exists: null
+    deletion_policy: DELETE
     description: null
     disabled: false
     display_name: Terraform-managed.
@@ -63,10 +64,11 @@ values:
     condition: []
     member: user:test-user@example.com
     role: organizations/366118655033/roles/myRoleTwo
-  google_storage_bucket_iam_member.bucket-roles["$storage_buckets:test-roles/storage.admin"]:
+  google_storage_bucket_iam_member.bucket_roles["$storage_buckets:test-roles/storage.admin"]:
     bucket: gcs-test-0
     condition: []
     role: roles/storage.admin
+    timeouts: null
   google_tags_tag_binding.binding["foo"]:
     tag_value: tagValues/1234567890
     timeouts: null
@@ -81,3 +83,11 @@ counts:
   google_tags_tag_binding: 1
   modules: 0
   resources: 11
+
+outputs:
+  email: prefix-test-sa@my-project-id.iam.gserviceaccount.com
+  iam_email: serviceAccount:prefix-test-sa@my-project-id.iam.gserviceaccount.com
+  id: projects/my-project-id/serviceAccounts/prefix-test-sa@my-project-id.iam.gserviceaccount.com
+  name: prefix-test-sa@my-project-id.iam.gserviceaccount.com
+  service_account: __missing__
+  unique_id: __missing__

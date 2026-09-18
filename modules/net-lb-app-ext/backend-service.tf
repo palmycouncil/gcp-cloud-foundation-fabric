@@ -46,7 +46,7 @@ resource "google_compute_backend_service" "default" {
   for_each = var.backend_service_configs
   project = (
     each.value.project_id == null
-    ? var.project_id
+    ? local.project_id
     : each.value.project_id
   )
   name                            = coalesce(each.value.name, "${var.name}-${each.key}")
@@ -70,12 +70,20 @@ resource "google_compute_backend_service" "default" {
   protocol = (
     each.value.protocol == null ? var.protocol : each.value.protocol
   )
-  security_policy  = each.value.security_policy
+  security_policy = (
+    each.value.security_policy == null
+    ? null
+    : lookup(
+      local.ctx.security_policies,
+      each.value.security_policy,
+      each.value.security_policy
+    )
+  )
   session_affinity = each.value.session_affinity
   timeout_sec      = each.value.timeout_sec
 
   dynamic "backend" {
-    for_each = { for b in coalesce(each.value.backends, []) : b.backend => b }
+    for_each = { for b in coalesce(each.value.backends, []) : b.group => b }
     content {
       group           = lookup(local.group_ids, backend.key, backend.key)
       preference      = backend.value.preferred ? "PREFERRED" : null
@@ -117,6 +125,17 @@ resource "google_compute_backend_service" "default" {
       negative_caching             = cdn.value.negative_caching
       serve_while_stale            = cdn.value.serve_while_stale
       signed_url_cache_max_age_sec = cdn.value.signed_url_cache_max_age_sec
+      dynamic "bypass_cache_on_request_headers" {
+        for_each = (
+          cdn.value.bypass_cache_on_request_headers == null
+          ? []
+          : cdn.value.bypass_cache_on_request_headers
+        )
+        iterator = h
+        content {
+          header_name = h.value
+        }
+      }
       dynamic "cache_key_policy" {
         for_each = (
           cdn.value.cache_key_policy == null
@@ -198,21 +217,20 @@ resource "google_compute_backend_service" "default" {
     }
   }
 
-  dynamic "iap" {
-    for_each = each.value.iap_config == null ? [] : [each.value.iap_config]
-    content {
-      enabled                     = true
-      oauth2_client_id            = try(iap.value.oauth2_client_id, null)
-      oauth2_client_secret        = try(iap.value.oauth2_client_secret, null)
-      oauth2_client_secret_sha256 = try(iap.value.oauth2_client_secret_sha256, null)
-    }
+  iap {
+    enabled                     = each.value.iap_config != null
+    oauth2_client_id            = try(each.value.iap_config.oauth2_client_id, null)
+    oauth2_client_secret        = try(each.value.iap_config.oauth2_client_secret, null)
+    oauth2_client_secret_sha256 = try(each.value.iap_config.oauth2_client_secret_sha256, null)
   }
 
   dynamic "log_config" {
-    for_each = each.value.log_sample_rate == null ? [] : [""]
+    for_each = each.value.log_config == null ? [] : [""]
     content {
-      enable      = true
-      sample_rate = each.value.log_sample_rate
+      enable          = each.value.log_config.enable
+      sample_rate     = each.value.log_config.sample_rate
+      optional_mode   = each.value.log_config.optional_mode
+      optional_fields = each.value.log_config.optional_fields
     }
   }
 

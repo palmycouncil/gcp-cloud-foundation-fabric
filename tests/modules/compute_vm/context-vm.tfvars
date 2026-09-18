@@ -1,12 +1,15 @@
-attached_disks = [{
-  name = "data-0"
-  size = 10
-  }
-]
+attached_disks = {
+  data-0 = {}
+}
 context = {
   addresses = {
     ext-test-0 = "35.10.10.10"
     int-test-0 = "10.0.0.10"
+  }
+  condition_vars = {
+    ports = {
+      ssh = "22"
+    }
   }
   custom_roles = {
     myrole_one = "organizations/366118655033/roles/myRoleOne"
@@ -32,6 +35,13 @@ context = {
   tag_values = {
     "test/one" = "tagValues/1234567890"
   }
+  tag_vars = {
+    projects = {
+      "test-00" = {
+        test = "foo-test-0/dynamic_test"
+      }
+    }
+  }
 }
 encryption = {
   encrypt_boot      = true
@@ -41,6 +51,31 @@ iam = {
   "$custom_roles:myrole_one" = [
     "$iam_principals:mygroup"
   ]
+}
+iap_tunnel_iam = {
+  "$custom_roles:myrole_one" = [
+    "$iam_principals:mygroup"
+  ]
+}
+iap_tunnel_iam_bindings = {
+  tunnel-conditional = {
+    role    = "$custom_roles:myrole_one"
+    members = ["$iam_principals:mygroup"]
+    condition = {
+      title      = "ssh-only"
+      expression = "destination.port == $${ports.ssh}"
+    }
+  }
+}
+iap_tunnel_iam_bindings_additive = {
+  tunnel-additive = {
+    role   = "$custom_roles:myrole_one"
+    member = "$iam_principals:mygroup"
+    condition = {
+      title      = "ssh-only-additive"
+      expression = "destination.port == $${ports.ssh}"
+    }
+  }
 }
 name = "test"
 network_interfaces = [{
@@ -54,6 +89,8 @@ network_interfaces = [{
 }]
 project_id = "$project_ids:test"
 tag_bindings = {
-  foo = "$tag_values:test/one"
+  bar = "tagValues/1234567891"
+  baz = "$tag_values:test/one"
+  foo = "$${projects[\"test-00\"].test}/cc-123"
 }
 zone = "$locations:ew8a"

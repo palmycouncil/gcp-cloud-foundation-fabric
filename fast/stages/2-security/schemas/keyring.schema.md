@@ -19,7 +19,10 @@
     <br>*additional properties: false*
     - **destroy_scheduled_duration**: *string*
     - **rotation_period**: *string*
-    - **labels**: *string*
+    - **labels**: *object*
+      <br>*additional properties: false*
+      - **`^[a-z][a-z0-9_-]{0,62}$`**: *string*
+        <br>*pattern: ^[a-z0-9_-]{0,63}$*
     - **purpose**: *string*
       <br>*default: ENCRYPT_DECRYPT*, *enum: ['CRYPTO_KEY_PURPOSE_UNSPECIFIED', 'ENCRYPT_DECRYPT', 'ASYMMETRIC_SIGN', 'ASYMMETRIC_DECRYPT', 'RAW_ENCRYPT_DECRYPT', 'MAC']*
     - **skip_initial_version_creation**: *boolean*
@@ -38,14 +41,14 @@
   <br>*additional properties: false*
   - **`^roles/`**: *array*
     - items: *string*
-      <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|[a-z])*
+      <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|\$iam_principals:)*
 - **iam_bindings**<a name="refs-iam_bindings"></a>: *object*
   <br>*additional properties: false*
   - **`^[a-z0-9_-]+$`**: *object*
     <br>*additional properties: false*
     - **members**: *array*
       - items: *string*
-        <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|[a-z])*
+        <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|\$iam_principals:)*
     - **role**: *string*
       <br>*pattern: ^roles/*
     - **condition**: *object*
@@ -58,7 +61,7 @@
   - **`^[a-z0-9_-]+$`**: *object*
     <br>*additional properties: false*
     - **member**: *string*
-      <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|[a-z])*
+      <br>*pattern: ^(?:domain:|group:|serviceAccount:|user:|principal:|principalSet:|\$iam_principals:)*
     - **role**: *string*
       <br>*pattern: ^[a-zA-Z0-9_/]+$*
     - **condition**: *object*

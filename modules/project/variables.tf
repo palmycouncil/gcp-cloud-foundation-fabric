@@ -149,17 +149,35 @@ variable "context" {
     storage_buckets       = optional(map(string), {})
     tag_keys              = optional(map(string), {})
     tag_values            = optional(map(string), {})
-    vpc_sc_perimeters     = optional(map(string), {})
+    tag_vars = optional(object({
+      projects     = optional(map(map(string)), {})
+      organization = optional(map(string), {})
+    }), {})
+    vpc_sc_perimeters = optional(map(string), {})
   })
   default  = {}
   nullable = false
 }
 
 variable "custom_roles" {
-  description = "Map of role name => list of permissions to create in this project."
-  type        = map(list(string))
-  default     = {}
-  nullable    = false
+  description = "Map of role name => role attributes to create in this project."
+  type = map(object({
+    permissions = list(string)
+    title       = optional(string)
+    description = optional(string)
+    stage       = optional(string)
+  }))
+  default  = {}
+  nullable = false
+  validation {
+    condition = alltrue([
+      for k, v in var.custom_roles : contains(
+        ["ALPHA", "BETA", "GA", "DEPRECATED", "DISABLED", "EAP"],
+        coalesce(v.stage, "GA")
+      )
+    ])
+    error_message = "Stage must be one of ALPHA, BETA, GA, DEPRECATED, DISABLED, EAP."
+  }
 }
 
 variable "default_network_tier" {
@@ -328,6 +346,7 @@ variable "service_agents_config" {
     create_primary_agents      = optional(bool, true)
     grant_default_roles        = optional(bool, true)
     grant_service_agent_editor = optional(bool, true)
+    skip_iam                   = optional(set(string), [])
   })
   default  = {}
   nullable = false

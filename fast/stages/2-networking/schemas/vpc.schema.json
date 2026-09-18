@@ -25,6 +25,9 @@
         "firewall_rules": {
           "type": "string"
         },
+        "attachment_groups": {
+          "type": "string"
+        },
         "subnets": {
           "type": "string"
         },
@@ -194,6 +197,9 @@
           "properties": {
             "region": {
               "type": "string"
+            },
+            "num_nat_ips": {
+              "type": "number"
             }
           }
         }
@@ -288,9 +294,16 @@
             },
             "labels": {
               "type": "object",
-              "additionalProperties": {
-                "type": "string"
+              "additionalProperties": false,
+              "patternProperties": {
+                "^[a-z][a-z0-9_-]{0,62}$": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_-]{0,63}$"
+                }
               }
+            },
+            "name": {
+              "type": "string"
             },
             "next_hop_ilb_ip": {
               "type": "string"
@@ -369,6 +382,9 @@
               "type": "string"
             },
             "dest_range": {
+              "type": "string"
+            },
+            "name": {
               "type": "string"
             },
             "next_hop_type": {

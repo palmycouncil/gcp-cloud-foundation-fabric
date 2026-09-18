@@ -25,6 +25,10 @@ variable "context" {
     service_account_ids = optional(map(string), {})
     storage_buckets     = optional(map(string), {})
     tag_values          = optional(map(string), {})
+    tag_vars = optional(object({
+      projects     = optional(map(map(string)), {})
+      organization = optional(map(string), {})
+    }), {})
   })
   nullable = false
   default  = {}
@@ -38,6 +42,16 @@ variable "create_ignore_already_exists" {
   validation {
     condition     = !(var.create_ignore_already_exists == true && var.service_account_reuse == null)
     error_message = "Cannot set create_ignore_already_exists when service_account_reuse is null."
+  }
+}
+
+variable "deletion_policy" {
+  description = "Deletion policy: DELETE, ABANDON, or PREVENT."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.deletion_policy == null || contains(["ABANDON", "DELETE", "PREVENT"], var.deletion_policy)
+    error_message = "deletion_policy must be one of 'ABANDON', 'DELETE', 'PREVENT'."
   }
 }
 

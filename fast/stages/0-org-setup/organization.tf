@@ -15,6 +15,7 @@
  */
 
 locals {
+  _org_logging_settings = lookup(local.organization, "logging", null)
   ctx_condition_vars = {
     custom_roles = merge(
       local.ctx.custom_roles,
@@ -49,22 +50,18 @@ locals {
     ? try(local.defaults.organization.id, local.organization.id)
     : local.organization.id
   )
-  # build map of predefined groups if organization domain is set
+  # define domain principal if organization domain is set
   org_iam_principals = local.organization.domain == null ? {} : {
-    domain                  = "domain:${local.organization.domain}"
-    gcp-billing-admins      = "group:gcp-billing-admins@${local.organization.domain}"
-    gcp-devops              = "group:gcp-devops@${local.organization.domain}"
-    gcp-network-admins      = "group:gcp-network-admins@${local.organization.domain}"
-    gcp-organization-admins = "group:gcp-organization-admins@${local.organization.domain}"
-    gcp-secops-admins       = "group:gcp-secops-admins@${local.organization.domain}"
-    gcp-security-admins     = "group:gcp-security-admins@${local.organization.domain}"
-    gcp-support             = "group:gcp-support@${local.organization.domain}"
+    domain = "domain:${local.organization.domain}"
+  }
+  org_access_levels = {
+    for k, v in module.organization[0].access_levels : k => v.id
   }
   org_logging_identities = merge(
-    module.organization[0].logging_identities.kms == null ? {} : {
+    try(local._org_logging_settings.kms_key_name, null) == null ? {} : {
       "organization/logging/kms" = module.organization[0].logging_identities.kms
     },
-    module.organization[0].logging_identities.logging == null ? {} : {
+    local._org_logging_settings == null ? {} : {
       "organization/logging/sinks" = module.organization[0].logging_identities.logging
     }
   )
@@ -74,12 +71,17 @@ locals {
   org_tag_values = {
     for k, v in module.organization[0].tag_values : k => v.id
   }
+  org_tag_vars = {
+    for k, v in module.organization[0].tag_keys :
+    k => v.namespaced_name if try(v.allowed_values_regex, "") != ""
+  }
 }
 
 module "organization" {
   source           = "../../../modules/organization"
   count            = local.organization_id != null ? 1 : 0
   organization_id  = "organizations/${local.organization_id}"
+  access_policy    = try(local.organization.access_policy, null)
   logging_settings = lookup(local.organization, "logging", null)
   context = {
     condition_vars = {
@@ -90,8 +92,10 @@ module "organization" {
     email_addresses = local.ctx.email_addresses
     locations       = local.ctx.locations
   }
-  contacts = lookup(local.organization, "contacts", {})
+  contacts              = lookup(local.organization, "contacts", {})
+  service_agents_config = lookup(local.organization, "service_agents_config", {})
   factories_config = {
+    access_levels          = "${local.paths.organization}/access-levels"
     custom_roles           = "${local.paths.organization}/custom-roles"
     tags                   = "${local.paths.organization}/tags"
     scc_sha_custom_modules = "${local.paths.organization}/scc-sha-custom-modules"
@@ -99,8 +103,8 @@ module "organization" {
   tags_config = {
     ignore_iam = true
   }
-  workforce_identity_config = try(
-    local.organization.workforce_identity_config, null
+  workforce_identity_pools = try(
+    local.organization.workforce_identity_pools, null
   )
 }
 
@@ -110,6 +114,10 @@ module "organization-iam" {
   organization_id = module.organization[0].id
   asset_feeds     = lookup(local.organization, "asset_feeds", {})
   context = merge(local.ctx, {
+    access_levels = merge(
+      try(local.ctx.access_levels, {}),
+      local.org_access_levels
+    )
     condition_vars = merge(
       local.ctx_condition_vars,
       { folder_ids = module.factory.folder_ids },
@@ -122,7 +130,11 @@ module "organization-iam" {
     )
     iam_principals = merge(
       local.ctx.iam_principals,
-      module.factory.iam_principals
+      module.factory.iam_principals,
+      {
+        for k, v in module.organization[0].service_agents :
+        "service_agents/${k}" => v.iam_email
+      }
     )
     log_buckets = module.factory.log_buckets
     project_ids = merge(
@@ -138,6 +150,12 @@ module "organization-iam" {
       local.ctx.tag_values,
       local.org_tag_values
     )
+    tag_vars = merge(local.ctx.tag_vars, {
+      organization = merge(
+        try(local.ctx.tag_vars.organization, {}),
+        local.org_tag_vars
+      )
+    })
   })
   factories_config = {
     org_policy_custom_constraints = "${local.paths.organization}/custom-constraints"
@@ -165,7 +183,13 @@ module "organization-iam" {
   logging_data_access = try(local.organization.data_access_logs, {})
   logging_sinks       = try(local.organization.logging.sinks, {})
   pam_entitlements    = try(local.organization.pam_entitlements, {})
+  context_aware_access_bindings = lookup(
+    local.organization, "context_aware_access_bindings", {}
+  )
   tags_config = {
     force_context_ids = true
   }
+  iam_deny_policies = lookup(
+    local.organization, "iam_deny_policies", {}
+  )
 }

@@ -128,7 +128,7 @@ variable "assured_workload_config" {
     error_message = "Field assured_workload_config.compliance_regime must be one of the values listed in https://cloud.google.com/assured-workloads/docs/reference/rest/Shared.Types/ComplianceRegime"
   }
   validation {
-    condition = try(contains([
+    condition = try(var.assured_workload_config.partner == null || contains([
       "LOCAL_CONTROLS_BY_S3NS",
       "PARTNER_UNSPECIFIED",
       "SOVEREIGN_CONTROLS_BY_CNTXT_NO_EKM",
@@ -137,7 +137,7 @@ variable "assured_workload_config" {
       "SOVEREIGN_CONTROLS_BY_SIA_MINSAIT",
       "SOVEREIGN_CONTROLS_BY_T_SYSTEMS",
     ], var.assured_workload_config.partner), true)
-    error_message = "Field assured_workload_config.partner must be one of the values listed in https://cloud.google.com/assured-workloads/docs/reference/rest/Shared.Types/Partner"
+    error_message = "Field assured_workload_config.partner must be null or one of the values listed in https://cloud.google.com/assured-workloads/docs/reference/rest/Shared.Types/Partner"
   }
 }
 
@@ -185,6 +185,10 @@ variable "context" {
     pubsub_topics     = optional(map(string), {})
     storage_buckets   = optional(map(string), {})
     tag_values        = optional(map(string), {})
+    tag_vars = optional(object({
+      projects     = optional(map(map(string)), {})
+      organization = optional(map(string), {})
+    }), {})
   })
   default  = {}
   nullable = false
@@ -281,6 +285,16 @@ variable "parent" {
     )
     error_message = "Parent must be of the form folders/folder_id or organizations/organization_id, or map to a context variable via $folder_ids:."
   }
+}
+
+variable "service_agents_config" {
+  description = "Service agents configuration."
+  type = object({
+    services      = optional(list(string), [])
+    create_agents = optional(bool, true)
+  })
+  default  = {}
+  nullable = false
 }
 
 variable "tag_bindings" {

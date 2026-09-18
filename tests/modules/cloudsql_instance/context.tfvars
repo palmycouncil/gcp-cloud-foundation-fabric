@@ -14,8 +14,18 @@ network_config = {
     psa_config = {
       private_network = "$networks:myvpc"
     }
+    psc_config = {
+      allowed_consumer_projects = ["$project_ids:myprj"]
+    }
   }
 }
 encryption_key_name           = "$kms_keys:mykey"
 gcp_deletion_protection       = false
 terraform_deletion_protection = false
+insights_config = {
+  query_string_length             = 2048
+  record_application_tags         = true
+  record_client_address           = true
+  query_plans_per_minute          = 10
+  enhanced_query_insights_enabled = true
+}
